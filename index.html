@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>工具集合：加密 / 編碼 / 時間戳記</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+<body>
+  <h2>AES 密文產生器</h2>
+  <label>明文：</label><br>
+  <input type="text" id="inputText" style="width: 300px;"><br><br>
+  <label>金鑰：</label><br>
+  <input type="text" id="inputKey" style="width: 300px;"><br><br>
+  <button onclick="encrypt()">🔐 手動加密</button>
+  <button onclick="copyCipher()">📋 複製密文</button>
+  <button onclick="downloadCipher()">⬇️ 下載密文</button>
+  <h3>密文結果：</h3>
+  <pre id="result" style="background: #f4f4f4; padding: 1em;"></pre>
+
+  <hr>
+
+  <h2>🔗 字串 ↔️ URL Encoding</h2>
+  <textarea id="urlInput" placeholder="輸入字串或URL編碼" rows="2" cols="60"></textarea><br>
+  <button onclick="encodeURL()">➡️ 編碼</button>
+  <button onclick="decodeURL()">⬅️ 解碼</button>
+  <button onclick="copyURL()">📋 複製結果</button>
+  <pre id="urlResult" style="background: #eef; padding: 1em;"></pre>
+
+  <hr>
+
+  <h2>🕒 日期時間 ↔️ Unix Timestamp</h2>
+  <div>
+    <label>日期時間：</label>
+    <input type="datetime-local" id="timestampInput">
+    <button onclick="convertToTimestamp()">➡️ 轉成 Timestamp</button>
+  </div>
+  <div>
+    <label>Timestamp：</label>
+    <input type="text" id="timestampOutput" style="width:200px">
+    <button onclick="convertToDate()">⬅️ 轉成日期</button>
+    <button onclick="copyTimestamp()">📋 複製 Timestamp</button>
+  </div>
+  <pre id="timestampResult" style="background: #efe; padding: 1em;"></pre>
+
+  <hr>
+
+  <h2>🔑 讀取 URL 參數並加密</h2>
+  <pre id="paramsResult"></pre>
+
+  <script>
+    // URL 參數讀取
+    function getURLParams() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sourceString = urlParams.get('sourceString');
+      const aesKey = urlParams.get('AesKey');
+      
+      if (sourceString && aesKey) {
+        document.getElementById("inputText").value = sourceString;
+        document.getElementById("inputKey").value = aesKey;
+        encrypt(); // 立刻加密並顯示密文
+        document.getElementById("paramsResult").innerText = `已讀取 URL 參數：\nsourceString: ${sourceString}\nAesKey: ${aesKey}`;
+      } else {
+        document.getElementById("paramsResult").innerText = "未找到有效的 URL 參數。";
+      }
+    }
+
+    // 初次頁面載入時，讀取 URL 參數
+    window.onload = getURLParams;
+
+    function getGUID(length) {
+      const chars = 'abcdef0123456789';
+      let result = '';
+      for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    }
+
+    function md5ToBytes(input) {
+      const hex = CryptoJS.MD5(input).toString();
+      const bytes = new Uint8Array(16);
+      for (let i = 0; i < 16; i++) {
+        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+      }
+      return bytes;
+    }
+
+    async function aesEncryptBase64(sourceStr, cryptoKey) {
+      const enc = new TextEncoder();
+      const keyBuffer = await crypto.subtle.digest('SHA-256', enc.encode(cryptoKey));
+      const key = await crypto.subtle.importKey('raw', keyBuffer, { name: 'AES-CBC' }, false, ['encrypt']);
+      const iv = md5ToBytes(cryptoKey);
+      const encrypted = await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, key, enc.encode(sourceStr));
+      return btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+    }
+
+    async function DoEncrypt(inpSourceStr, aesKey) {
+      inpSourceStr = inpSourceStr || '';
+      const size = inpSourceStr.length;
+      const midIndex = Math.floor(size / 2);
+      const sourcePart1 = inpSourceStr.substring(0, midIndex);
+      const sourcePart2 = inpSourceStr.substring(midIndex);
+      const topGuidLength = (Math.floor(Math.random() * 10) % 10) + 5;
+      const saltTopContent = getGUID(topGuidLength);
+      const now = new Date();
+      const saltMidContent = now.toISOString().replace('T', ' ').substring(0, 19);
+      const bottomGuidLength = (Math.floor(Math.random() * 10) % 10) + 5;
+      const saltBottomContent = getGUID(bottomGuidLength);
+      const saltSource = `<SaltTop='${saltTopContent}'>${sourcePart1}<SaltMid='${saltMidContent}'>${sourcePart2}<SaltBottom='${saltBottomContent}'>`;
+      return await aesEncryptBase64(saltSource, aesKey);
+    }
+
+    async function encrypt() {
+      const text = document.getElementById("inputText").value;
+      const key = document.getElementById("inputKey").value;
+      if (!text || !key) {
+        alert("請輸入明文與金鑰");
+        return;
+      }
+      const encrypted = await DoEncrypt(text, key);
+      document.getElementById("result").innerText = encrypted;
+    }
+
+    function copyCipher() {
+      const cipher = document.getElementById("result").innerText;
+      navigator.clipboard.writeText(cipher).then(() => alert("密文已複製！"));
+    }
+
+    function downloadCipher() {
+      const cipher = document.getElementById("result").innerText;
+      const blob = new Blob([cipher], { type: 'text/plain' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "License.txt";
+      link.click();
+    }
+
+    // URL Encode/Decode
+    function encodeURL() {
+      const input = document.getElementById("urlInput").value;
+      document.getElementById("urlResult").innerText = encodeURIComponent(input);
+    }
+
+    function decodeURL() {
+      const input = document.getElementById("urlInput").value;
+      try {
+        document.getElementById("urlResult").innerText = decodeURIComponent(input);
+      } catch {
+        document.getElementById("urlResult").innerText = "錯誤：不是合法的 URL 編碼字串。";
+      }
+    }
+
+    function copyURL() {
+      const content = document.getElementById("urlResult").innerText;
+      navigator.clipboard.writeText(content).then(() => alert("URL 結果已複製！"));
+    }
+
+    // Timestamp 功能
+    function convertToTimestamp() {
+      const input = document.getElementById("timestampInput").value;
+      if (!input) {
+        alert("請選擇時間");
+        return;
+      }
+      const date = new Date(input);
+      const ts = (date.getTime() / 1000).toFixed(7);
+      document.getElementById("timestampOutput").value = ts;
+      document.getElementById("timestampResult").innerText = `Unix Timestamp：${ts}`;
+    }
+
+    function convertToDate() {
+      const tsStr = document.getElementById("timestampOutput").value;
+      const ts = parseFloat(tsStr);
+      if (isNaN(ts)) {
+        alert("請輸入有效的 timestamp");
+        return;
+      }
+      const date = new Date(ts * 1000);
+      const iso = date.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+      document.getElementById("timestampInput").value = iso;
+      document.getElementById("timestampResult").innerText = `對應時間：${iso.replace('T', ' ')}`;
+    }
+
+    function copyTimestamp() {
+      const val = document.getElementById("timestampOutput").value;
+      navigator.clipboard.writeText(val).then(() => alert("Timestamp 已複製"));
+    }
+  </script>
+</body>
+</html>
