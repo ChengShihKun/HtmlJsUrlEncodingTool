@@ -11,9 +11,9 @@
   <input type="text" id="inputText" style="width: 300px;"><br><br>
   <label>金鑰：</label><br>
   <input type="text" id="inputKey" style="width: 300px;"><br><br>
-  <button onclick="encrypt()">🔐 手動加密</button>
-  <button onclick="copyCipher()">📋 複製密文</button>
-  <button onclick="downloadCipher()">⬇️ 下載密文</button>
+  <button onclick="encrypt();">🔐 手動加密</button>
+  <button onclick="encrypt();copyCipher();">📋 複製密文</button>
+  <button onclick="encrypt();downloadCipher();">⬇️ 下載密文</button>
   <h3>密文結果：</h3>
   <pre id="result" style="background: #f4f4f4; padding: 1em;"></pre>
 
@@ -131,7 +131,7 @@
       const blob = new Blob([cipher], { type: 'text/plain' });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = "License.txt";
+      link.download = "License.lic";
       link.click();
     }
 
